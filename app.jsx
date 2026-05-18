@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Home, Plus, Target, FolderOpen, Sparkles, Heart, Users,
-  CheckCircle2, Circle, X, Send, RefreshCw, ArrowRight
+  CheckCircle2, Circle, X, Send, RefreshCw, ArrowRight, Settings
 } from "lucide-react";
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
@@ -32,35 +32,27 @@ const T = {
 
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght=0,400;0,500;0,600;1,400;1,500&family=DM+Sans:opsz,wght=9..40,300;9..40,400;9..40,500&display=swap');
   *, *::before, *::after { box-sizing: border-box; }
   ::-webkit-scrollbar { width: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
-  textarea, input, button { font-family: "DM Sans", system-ui, sans-serif; }
+  textarea, input, button, select { font-family: "DM Sans", system-ui, sans-serif; }
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes dotBounce {
-    0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
-    40%           { transform: translateY(-4px); opacity: 1; }
-  }
   .view-enter { animation: fadeUp 0.38s cubic-bezier(0.16,1,0.3,1) both; }
-  .fade-in    { animation: fadeIn 0.25s ease both; }
   .dot1, .dot2, .dot3 {
     display: inline-block; width: 5px; height: 5px; border-radius: 50%;
     background: ${T.accent}; animation: dotBounce 1.3s infinite ease-in-out;
   }
+  @keyframes dotBounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+    40%           { transform: translateY(-4px); opacity: 1; }
+  }
   .dot2 { animation-delay: 0.18s; }
   .dot3 { animation-delay: 0.36s; }
-  .nav-btn:hover  { background: rgba(255,255,255,0.05) !important; }
-  .card-hov:hover { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.11) !important; }
-  .btn-accent:hover { opacity: 0.88; }
-  .pill-btn:hover { background: rgba(255,255,255,0.07) !important; }
-  .tag-btn { transition: all 0.15s; }
-  .tag-btn:hover { border-color: ${T.accentBd} !important; color: ${T.accent} !important; }
   input[type=range] { -webkit-appearance: none; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: ${T.accent}; cursor: pointer; border: 2px solid ${T.bg}; }
 `;
@@ -68,7 +60,6 @@ const GLOBAL_CSS = `
 const SEED_CAPTURES = [
   { id: 1, text: "Build the AI prioritization logic — should feel like a calm advisor", category: "🗂 Project", time: "2h ago", bg: T.lavBg },
   { id: 2, text: "Reply to Priya about the freelance proposal she sent over", category: "👥 People", time: "yesterday", bg: T.warmBg },
-  { id: 3, text: "I feel scattered today — too many open loops pulling attention", category: "😌 Emotion", time: "this morning", bg: T.accentBg },
 ];
 
 const SEED_PROJECTS = [
@@ -90,6 +81,7 @@ const NAV = [
   { id: "reflect",  Icon: Sparkles,   label: "Reflect" },
   { id: "people",   Icon: Users,      label: "People" },
   { id: "health",   Icon: Heart,      label: "Health" },
+  { id: "settings", Icon: Settings,   label: "Settings" },
 ];
 
 function greeting() {
@@ -99,33 +91,98 @@ function greeting() {
   return             { hi: "Good evening.",   sub: "Winding down or still in flow?" };
 }
 
-// ─── DEPLOYMENT COMPATIBLE MOCK AI INTERFACE ──────────────────────────────────
-async function callAI(userMsg) {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  const text = userMsg.toLowerCase();
-  if (text.includes("overwhelmed") || text.includes("simplify")) {
-    return "Let's pause. Take a deep breath. Pick just one single task off your screen right now—even a tiny one. Let everything else wait.";
+// ─── LIVE CLIENT-SIDE CHAT ROUTING (BYOK) ──────────────────────────────────────
+async function callLiveAI(provider, apiKey, userMsg, systemPrompt = "") {
+  if (!apiKey) return "Please go to the Settings tab and add your personal API Key to enable live advisor responses.";
+  
+  try {
+    if (provider === "openai") {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt || "You are a calm, concise assistant." },
+            { role: "user", content: userMsg }
+          ]
+        })
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "No response received.";
+    } 
+    
+    if (provider === "openrouter") {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "user", content: userMsg }]
+        })
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || "No response received.";
+    }
+
+    return "Selected provider setup is still parsing. Check back shortly.";
+  } catch (err) {
+    return `Connection error: ${err.message}. Double check your key validity and internet configurations.`;
   }
-  return "I hear you. When things feel nonlinear, structure should serve you, not pressure you. What's the smallest step you can take on your main focus right now?";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN APPLICATION ENGINE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [view, setView]         = useState("today");
+  const [view, setView] = useState("today");
+  
+  // LocalStorage Persisted States
   const [captures, setCaptures] = useState(() => {
     const saved = localStorage.getItem("axis_captures");
     return saved ? JSON.parse(saved) : SEED_CAPTURES;
   });
-  const [projects, setProjects] = useState(SEED_PROJECTS);
-  const [people, setPeople]     = useState(SEED_PEOPLE);
-  const [health, setHealth]     = useState({ mood: 3, energy: 3, sleep: 7, water: 4 });
+  const [tasks, setTasks] = useState(() => {
+    const saved = localStorage.getItem("axis_tasks");
+    return saved ? JSON.parse(saved) : [
+      { id: 1, text: "Reply to Priya's freelance proposal", done: false },
+      { id: 2, text: "30 min deep work session on the app", done: true },
+    ];
+  });
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem("axis_projects");
+    return saved ? JSON.parse(saved) : SEED_PROJECTS;
+  });
+  const [people, setPeople] = useState(() => {
+    const saved = localStorage.getItem("axis_people");
+    return saved ? JSON.parse(saved) : SEED_PEOPLE;
+  });
+  const [health, setHealth] = useState(() => {
+    const saved = localStorage.getItem("axis_health");
+    return saved ? JSON.parse(saved) : { mood: 3, energy: 3, sleep: 7, water: 4 };
+  });
+
+  // API Config State
+  const [aiConfig, setAiConfig] = useState(() => {
+    const saved = localStorage.getItem("axis_ai_config");
+    return saved ? JSON.parse(saved) : { provider: "openai", key: "" };
+  });
+
   const [modalOpen, setModalOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem("axis_captures", JSON.stringify(captures));
-  }, [captures]);
+  // Sync state mutations to physical LocalStorage
+  useEffect(() => { localStorage.setItem("axis_captures", JSON.stringify(captures)); }, [captures]);
+  useEffect(() => { localStorage.setItem("axis_tasks", JSON.stringify(tasks)); }, [tasks]);
+  useEffect(() => { localStorage.setItem("axis_projects", JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { localStorage.setItem("axis_people", JSON.stringify(people)); }, [people]);
+  useEffect(() => { localStorage.setItem("axis_health", JSON.stringify(health)); }, [health]);
+  useEffect(() => { localStorage.setItem("axis_ai_config", JSON.stringify(aiConfig)); }, [aiConfig]);
 
   const addCapture = useCallback((text, category = "💭 Thought") => {
     setCaptures(p => [{ id: Date.now(), text, category, time: "just now", bg: T.accentBg }, ...p]);
@@ -145,7 +202,7 @@ export default function App() {
           {NAV.map(({ id, Icon, label }) => {
             const active = view === id;
             return (
-              <button key={id} onClick={() => setView(id)} className="nav-btn"
+              <button key={id} onClick={() => setView(id)} 
                 style={{
                   display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 8,
                   background: active ? T.accentBg : "transparent", color: active ? T.accent : T.sub,
@@ -159,20 +216,21 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* CORE VIEWPORT PORTS */}
+      {/* CORE VIEWPORT */}
       <main style={{ flex: 1, marginLeft: 214, minHeight: "100vh" }}>
         <div style={{ maxWidth: 700, margin: "0 auto", padding: "44px 36px 120px" }}>
-          {view === "today"    && <TodayView captures={captures} health={health} setHealth={setHealth} onCapture={() => setModalOpen(true)} />}
+          {view === "today"    && <TodayView captures={captures} health={health} setHealth={setHealth} tasks={tasks} setTasks={setTasks} />}
           {view === "capture"  && <CaptureView captures={captures} addCapture={addCapture} setCaptures={setCaptures} />}
-          {view === "focus"    && <FocusView />}
+          {view === "focus"    && <FocusView config={aiConfig} />}
           {view === "projects" && <ProjectsView projects={projects} setProjects={setProjects} />}
-          {view === "reflect"  && <ReflectView captures={captures} />}
+          {view === "reflect"  && <ReflectView captures={captures} config={aiConfig} />}
           {view === "people"   && <PeopleView people={people} setPeople={setPeople} />}
           {view === "health"   && <HealthView health={health} setHealth={setHealth} />}
+          {view === "settings" && <SettingsView config={aiConfig} setConfig={setAiConfig} />}
         </div>
       </main>
 
-      {/* FLOATING QUICK CAPTURE TRIGGER BUTTON */}
+      {/* FLOATING QUICK CAPTURE BUTTON */}
       <button onClick={() => setModalOpen(true)}
         style={{ position: "fixed", bottom: 28, right: 28, width: 50, height: 50, borderRadius: "50%", background: T.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
         <Plus size={20} color={T.bg} />
@@ -184,15 +242,11 @@ export default function App() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
-// SUB-VIEWS SUB-COMPONENTS ENTRY LISTINGS
+// MODULE SUB-COMPONENTS
 // ───────────────────────────────────────────────────────────────────────────────
 
-function TodayView({ captures, health, setHealth, onCapture }) {
+function TodayView({ captures, health, setHealth, tasks, setTasks }) {
   const { hi, sub } = greeting();
-  const [tasks, setTasks] = useState([
-    { id: 1, text: "Reply to Priya's freelance proposal", done: false },
-    { id: 2, text: "30 min deep work session on the app", done: true },
-  ]);
   const [newTask, setNewTask] = useState("");
 
   return (
@@ -210,7 +264,8 @@ function TodayView({ captures, health, setHealth, onCapture }) {
               <button onClick={() => setTasks(ts => ts.map(x => x.id === t.id ? { ...x, done: !x.done } : x))} style={{ background: "transparent", border: "none", color: t.done ? T.accent : T.muted, cursor: "pointer", display: "flex" }}>
                 {t.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
               </button>
-              <span style={{ fontSize: 14, color: t.done ? T.muted : T.text, textDecoration: t.done ? "line-through" : "none" }}>{t.text}</span>
+              <span style={{ fontSize: 14, color: t.done ? T.muted : T.text, textDecoration: t.done ? "line-through" : "none", flex: 1 }}>{t.text}</span>
+              <button onClick={() => setTasks(ts => ts.filter(x => x.id !== t.id))} style={{ background: "transparent", border: "none", color: T.muted, cursor: "pointer" }}><X size={14} /></button>
             </div>
           ))}
         </div>
@@ -221,8 +276,10 @@ function TodayView({ captures, health, setHealth, onCapture }) {
       </Card>
 
       <div style={{ marginTop: 24 }}>
-        <Label text="Recent Cloud Storage Backups" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <Label text="Recent Cloud Storage Backups" />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {captures.slice(0, 3).map(c => (
             <div key={c.id} style={{ padding: "12px 14px", background: T.card, borderRadius: 8, border: `1px solid ${T.border}` }}>
               <p style={{ fontSize: 13.5, color: T.text, margin: "0 0 6px" }}>{c.text}</p>
@@ -245,7 +302,7 @@ function CaptureView({ captures, addCapture, setCaptures }) {
       <Card mb={16}>
         <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Type anything lingering in your head..." style={{ width: "100%", background: "transparent", border: "none", color: T.text, fontSize: 15, resize: "none", outline: "none" }} rows={4} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-          <select value={cat} onChange={e => setCat(e.target.value)} style={{ background: T.surface, color: T.text, border: `1px solid ${T.border}`, padding: "4px 8px", borderRadius: 6 }}>
+          <select value={cat} onChange={e => setCat(e.target.value)} style={{ background: T.surface, color: T.text, border: `1px solid ${T.border}`, padding: "4px 8px", borderRadius: 6, outline: "none" }}>
             {CAT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
           <button onClick={() => { if (text.trim()) { addCapture(text, cat); setText(""); } }} style={{ padding: "6px 16px", background: T.accent, color: T.bg, border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Save</button>
@@ -267,7 +324,7 @@ function CaptureView({ captures, addCapture, setCaptures }) {
   );
 }
 
-function FocusView() {
+function FocusView({ config }) {
   const [messages, setMessages] = useState([
     { role: "ai", text: "Hey. What's pulling at your executive attention right now? Let's filter out the noise." }
   ]);
@@ -280,15 +337,18 @@ function FocusView() {
     setInput("");
     setMessages(prev => [...prev, { role: "user", text: userText }]);
     setLoading(true);
-    const reply = await callAI(userText);
+
+    const systemPrompt = "You are Axis—a calm, direct, warm assistant for someone managing executive dysfunction. Keep responses under 3 sentences.";
+    const reply = await callLiveAI(config.provider, config.key, userText, systemPrompt);
+    
     setMessages(prev => [...prev, { role: "ai", text: reply }]);
     setLoading(false);
   };
 
   return (
     <div className="view-enter">
-      <Header title="Focus Engine" sub="Direct alignment workspace. Zero judgment chat." />
-      <Card mb={16} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 400, overflowY: "auto" }}>
+      <Header title="Focus Engine" sub="Direct alignment workspace. Powered by your API key." />
+      <Card mb={16} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 350, overflowY: "auto" }}>
         {messages.map((m, i) => (
           <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? T.accentBg : "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: 10, border: `1px solid ${m.role === "user" ? T.accentBd : T.border}`, maxWidth: "85%", fontSize: 14 }}>
             {m.text}
@@ -297,7 +357,7 @@ function FocusView() {
         {loading && <div style={{ fontSize: 12, color: T.muted }}><span className="dot1"/> <span className="dot2"/> <span className="dot3"/></div>}
       </Card>
       <div style={{ display: "flex", gap: 8 }}>
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleSend(); }} placeholder="Type how you're feeling or what you're stuck on..." style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, padding: "12px", borderRadius: 8, color: T.text, outline: "none" }} />
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleSend(); }} placeholder="What's making it hard to focus?" style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, padding: "12px", borderRadius: 8, color: T.text, outline: "none" }} />
         <button onClick={handleSend} style={{ background: T.accent, color: T.bg, border: "none", padding: "0 16px", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center" }}><Send size={16} /></button>
       </div>
     </div>
@@ -305,17 +365,35 @@ function FocusView() {
 }
 
 function ProjectsView({ projects, setProjects }) {
+  const [name, setName] = useState("");
+  const [next, setNext] = useState("");
+
+  const addProject = () => {
+    if (!name.trim()) return;
+    setProjects(p => [...p, { id: Date.now(), name, tag: "Track", next: next || "Define first step", progress: 0, status: "active" }]);
+    setName(""); setNext("");
+  };
+
   return (
     <div className="view-enter">
-      <Header title="Active Tracks" sub="One essential next physical action item per loop." />
+      <Header title="Active Tracks" sub="One essential physical action step per project loop." />
+      <Card mb={16}>
+        <Label text="New Track" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Project Name" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <input value={next} onChange={e => setNext(e.target.value)} placeholder="Immediate Next Physical Step" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <button onClick={addProject} style={{ background: T.accent, color: T.bg, padding: "8px", border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer", marginTop: 4 }}>Add Loop</button>
+        </div>
+      </Card>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {projects.map(p => (
-          <Card key={p.id}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Card key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
               <span style={{ fontSize: 15, fontWeight: 500, color: T.text }}>{p.name}</span>
-              <span style={{ fontSize: 11, color: T.accent, background: T.accentBg, padding: "2px 8px", borderRadius: 12 }}>{p.tag}</span>
+              <p style={{ fontSize: 13, color: T.sub, margin: "6px 0 0" }}>Next: <span style={{ color: T.warm }}>{p.next}</span></p>
             </div>
-            <p style={{ fontSize: 13, color: T.sub, marginTop: 8, margin: "8px 0 0" }}>Next Action: <span style={{ color: T.warm }}>{p.next}</span></p>
+            <button onClick={() => setProjects(ps => ps.filter(x => x.id !== p.id))} style={{ background: "transparent", border: "none", color: T.muted, cursor: "pointer" }}><X size={14} /></button>
           </Card>
         ))}
       </div>
@@ -323,23 +401,61 @@ function ProjectsView({ projects, setProjects }) {
   );
 }
 
-function ReflectView({ captures }) {
+function ReflectView({ captures, config }) {
+  const [analysis, setAnalysis] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const triggerWeeklyReflection = async () => {
+    if (captures.length === 0) {
+      setAnalysis("Your capture buffers are empty. Record a few thoughts first.");
+      return;
+    }
+    setLoading(true);
+    const logdump = captures.map(c => `[${c.category}]: ${c.text}`).join("\n");
+    const prompt = `Analyze these recent notebook inputs and give a short, wise 2-paragraph reflection highlighting patterns or cognitive loops:\n\n${logdump}`;
+    const response = await callLiveAI(config.provider, config.key, prompt, "You are a grounding life strategist.");
+    setAnalysis(response);
+    setLoading(false);
+  };
+
   return (
     <div className="view-enter">
-      <Header title="Orientation Reflection" sub="Look back objectively to see patterns form over intervals." />
-      <Card>
-        <p style={{ fontFamily: T.display, fontSize: 17, fontStyle: "italic", color: T.text, lineHeight: 1.6 }}>
-          "You currently have {captures.length} thoughts cataloged in active local buffers. Focus is not the absence of thought—it is the choice of which loop matters right now."
-        </p>
+      <Header title="Orientation Reflection" sub="Run a cognitive check over your structural loops." />
+      <Card mb={16}>
+        <button onClick={triggerWeeklyReflection} disabled={loading} style={{ width: "100%", padding: 12, background: T.accentBg, border: `1px solid ${T.accentBd}`, color: T.accent, borderRadius: 8, cursor: "pointer", fontWeight: 500 }}>
+          {loading ? "Analyzing Buffers..." : "Generate AI Reflection Matrix"}
+        </button>
+        {analysis && (
+          <div style={{ marginTop: 16, fontSize: 14, color: T.text, lineHeight: 1.6, borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
+            {analysis}
+          </div>
+        )}
       </Card>
     </div>
   );
 }
 
 function PeopleView({ people, setPeople }) {
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+
+  const addPerson = () => {
+    if (!name.trim()) return;
+    setPeople(p => [...p, { id: Date.now(), name, role: "Contact", last: "Just now", note: note || "Stay in touch", emoji: "👤" }]);
+    setName(""); setNote("");
+  };
+
   return (
     <div className="view-enter">
-      <Header title="Social Spheres" sub="Keeping contact open with primary loops without relationship management guilt." />
+      <Header title="Social Spheres" sub="Keep connection baselines open without scheduling guilt." />
+      <Card mb={16}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Context Note" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <button onClick={addPerson} style={{ background: T.accent, color: T.bg, padding: "8px", border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Track Contact</button>
+        </div>
+      </Card>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {people.map(p => (
           <Card key={p.id} style={{ display: "flex", gap: 14, alignItems: "center" }}>
@@ -347,7 +463,7 @@ function PeopleView({ people, setPeople }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{p.name}</span>
-                <span style={{ fontSize: 11, color: T.muted }}>Last: {p.last}</span>
+                <button onClick={() => setPeople(ps => ps.filter(x => x.id !== p.id))} style={{ background: "transparent", border: "none", color: T.muted, cursor: "pointer" }}><X size={14} /></button>
               </div>
               <p style={{ fontSize: 12, color: T.sub, margin: "2px 0 0" }}>{p.note}</p>
             </div>
@@ -368,44 +484,10 @@ function HealthView({ health, setHealth }) {
 
   return (
     <div className="view-enter">
-      <Header title="Biometric Indicators" sub="Track baselines loosely to monitor the physical systems fueling executive function." />
+      <Header title="Biometric Indicators" sub=" loosely monitor physical systems fueling executive function." />
       <Card>
         {sliders.map(s => (
           <div key={s.key} style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: T.sub }}>
               <span>{s.label}</span>
-              <span style={{ color: T.accent, fontWeight: 500 }}>{health[s.key]}</span>
-            </div>
-            <input type="range" min={s.min} max={s.max} value={health[s.key]} onChange={e => setHealth(h => ({ ...h, [s.key]: Number(e.target.value) }))} style={{ width: "100%" }} />
-          </div>
-        ))}
-      </Card>
-    </div>
-  );
-}
-
-function QuickCapture({ onClose, onSave }) {
-  const [text, setText] = useState("");
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(8,9,15,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 500, background: T.surface, border: `1px solid ${T.borderMd}`, borderRadius: 14, padding: 20 }}>
-        <textarea value={text} onChange={e => setText(e.target.value)} autoFocus placeholder="Quickly get it out..." style={{ width: "100%", background: "transparent", border: "none", color: T.text, fontSize: 15, resize: "none", outline: "none" }} rows={3} />
-        <button onClick={() => { if (text.trim()) onSave(text, "💭 Thought"); }} style={{ width: "100%", marginTop: 12, padding: "10px", background: T.accent, color: T.bg, border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Commit Capture</button>
-      </div>
-    </div>
-  );
-}
-
-// SHARED PRIMITIVES
-function Card({ children, mb = 0, style = {} }) {
-  return <div style={{ padding: "16px 18px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: mb, ...style }}>{children}</div>;
-}
-function Header({ title, sub }) {
-  return <div style={{ marginBottom: 24 }}><h2 style={{ fontFamily: T.display, fontSize: 32, fontWeight: 400, color: T.text, marginBottom: 4 }}>{title}</h2><p style={{ fontSize: 13.5, color: T.sub, margin: 0 }}>{sub}</p></div>;
-}
-function Label({ text }) {
-  return <span style={{ fontSize: 11, color: T.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>{text}</span>;
-}
-function Pill({ text }) {
-  return <span style={{ fontSize: 10, color: T.muted, background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 20 }}>{text}</span>;
-}
+              <span style
