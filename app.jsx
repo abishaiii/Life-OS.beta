@@ -459,7 +459,7 @@ function PeopleView({ people, setPeople }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {people.map(p => (
           <Card key={p.id} style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.02)", display: "flex", alignItems: "center", justifyValue: "center", fontSize: 16 }}>{p.emoji}</div>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(255,255,255,0.02)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{p.emoji}</div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{p.name}</span>
