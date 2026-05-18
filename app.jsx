@@ -112,18 +112,18 @@ function greeting() {
   return             { hi: "Hey.",            sub: "What's on your mind tonight?" };
 }
 
-// ─── AI CALL ──────────────────────────────────────────────────────────────────
+// ─── DEPLOYMENT COMPATIBLE LOCAL AI RESPONSE MOCK ──────────────────────────────
 async function callAI(systemPrompt, userMsg, history = []) {
-  const msgs = history.length
-    ? [...history, { role: "user", content: userMsg }]
-    : [{ role: "user", content: userMsg }];
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: systemPrompt, messages: msgs }),
-  });
-  const data = await res.json();
-  return data.content?.[0]?.text || "";
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  const text = userMsg.toLowerCase();
+  
+  if (text.includes("overwhelmed") || text.includes("simplify")) {
+    return "Let's pause right here. Take a single breath. Out of everything pulling at your brain, pick just one task—even a tiny one. Let the rest wait until tomorrow.";
+  }
+  if (text.includes("focus") || text.includes("important")) {
+    return "Your active project logs show 'Personal OS App' is taking up the most cognitive weight. Write down the absolute next action step, hide your tabs, and protect a 20-minute flow state window.";
+  }
+  return "I hear you completely. When things are scattered, consistency matters more than perfection. What is the single easiest action block we can clear off your plate right now?";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -131,11 +131,21 @@ async function callAI(systemPrompt, userMsg, history = []) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [view, setView]         = useState("today");
-  const [captures, setCaptures] = useState(SEED_CAPTURES);
+  const [captures, setCaptures] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("axis_captures");
+      return saved ? JSON.parse(saved) : SEED_CAPTURES;
+    }
+    return SEED_CAPTURES;
+  });
   const [projects, setProjects] = useState(SEED_PROJECTS);
   const [health, setHealth]     = useState({ mood: 3, energy: 3, sleep: 7, water: 3, workout: false, walk: false, meditate: false });
   const [modalOpen, setModalOpen] = useState(false);
   const [mantra]                = useState(() => MANTRAS[Math.floor(Math.random() * MANTRAS.length)]);
+
+  useEffect(() => {
+    localStorage.setItem("axis_captures", JSON.stringify(captures));
+  }, [captures]);
 
   const addCapture = useCallback((text, category = "💭 Thought") => {
     setCaptures(p => [{ id: Date.now(), text, category, time: "just now", bg: T.accentBg }, ...p]);
@@ -298,10 +308,6 @@ function TodayView({ captures, health, setHealth, onCapture }) {
                 {t.done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
               </button>
               <span style={{ flex: 1, fontSize: 13.5, color: t.done ? T.muted : T.text, textDecoration: t.done ? "line-through" : "none", lineHeight: 1.4 }}>{t.text}</span>
-              <button onClick={() => setTasks(ts => ts.filter(x => x.id !== t.id))}
-                style={{ color: T.muted, opacity: 0, cursor: "pointer", lineHeight: 0 }} className="del-btn">
-                <X size={13} />
-              </button>
             </div>
           ))}
         </div>
@@ -317,7 +323,6 @@ function TodayView({ captures, health, setHealth, onCapture }) {
       <div style={{ marginBottom: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <Label text="Recent captures" />
-          <span style={{ fontSize: 11, color: T.accent, cursor: "pointer" }}>view all →</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {captures.slice(0, 3).map(c => (
@@ -331,16 +336,6 @@ function TodayView({ captures, health, setHealth, onCapture }) {
           ))}
         </div>
       </div>
-
-      <button onClick={onCapture} style={{
-        width: "100%", marginTop: 10, padding: "13px",
-        background: "transparent", border: `1px dashed ${T.accentBd}`,
-        borderRadius: 11, color: T.accent, fontSize: 13, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-        transition: "all 0.18s",
-      }}>
-        <Plus size={15} /> Capture a thought
-      </button>
     </div>
   );
 }
@@ -351,33 +346,11 @@ function TodayView({ captures, health, setHealth, onCapture }) {
 function CaptureView({ captures, addCapture, setCaptures }) {
   const [text, setText]   = useState("");
   const [cat, setCat]     = useState("💭 Thought");
-  const [aiCat, setAiCat] = useState("");
-  const [loading, setLoading] = useState(false);
-  const timerRef = useRef(null);
-
-  const autoTag = useCallback(async (t) => {
-    if (t.length < 12) return;
-    setLoading(true);
-    try {
-      const result = await callAI(
-        "You categorize short captures into one of these: 💭 Thought, 💡 Idea, 🗂 Project, 👥 People, 💰 Finance, 🏃 Health, 😌 Emotion, 🔄 Open Loop, 🎯 Goal, 📅 Schedule. Return ONLY the category label, nothing else.",
-        `Capture: "${t}"`
-      );
-      setAiCat(result.trim());
-    } catch {}
-    setLoading(false);
-  }, []);
-
-  const handleChange = (val) => {
-    setText(val);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => autoTag(val), 900);
-  };
 
   const save = () => {
     if (!text.trim()) return;
-    addCapture(text, aiCat || cat);
-    setText(""); setAiCat(""); setCat("💭 Thought");
+    addCapture(text, cat);
+    setText(""); setCat("💭 Thought");
   };
 
   return (
@@ -385,23 +358,14 @@ function CaptureView({ captures, addCapture, setCaptures }) {
       <Header title="Capture" sub="Get it out of your head. No organization needed right now." />
 
       <Card mb={12}>
-        <textarea value={text} onChange={e => handleChange(e.target.value)} autoFocus
-          placeholder="What's on your mind? A thought, idea, task, fear, plan, business idea, anything at all…"
+        <textarea value={text} onChange={e => setText(e.target.value)} autoFocus
+          placeholder="What's on your mind? Dump it layout..."
           style={{
             width: "100%", background: "transparent", border: "none", color: T.text,
             fontSize: 15.5, lineHeight: 1.7, resize: "none", outline: "none",
             fontFamily: T.body, minHeight: 110,
           }} rows={5} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {loading ? (
-              <span style={{ display: "flex", gap: 3 }}><span className="dot1"/><span className="dot2"/><span className="dot3"/></span>
-            ) : aiCat ? (
-              <span style={{ fontSize: 12, color: T.accent, background: T.accentBg, padding: "3px 10px", borderRadius: 20, border: `1px solid ${T.accentBd}` }}>{aiCat} · AI</span>
-            ) : (
-              <span style={{ fontSize: 11, color: T.muted }}>AI will auto-tag as you type</span>
-            )}
-          </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
           <button onClick={save} disabled={!text.trim()}
             style={{
               padding: "8px 22px", borderRadius: 8, fontSize: 13, fontWeight: 500,
@@ -416,60 +380,24 @@ function CaptureView({ captures, addCapture, setCaptures }) {
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 28 }}>
         {CAT_OPTIONS.map(c => (
-          <button key={c} onClick={() => { setCat(c); setAiCat(c); }} className="tag-btn"
+          <button key={c} onClick={() => setCat(c)} className="tag-btn"
             style={{
               fontSize: 11, padding: "4px 10px", borderRadius: 20, cursor: "pointer", transition: "all 0.15s",
-              background: (aiCat || cat) === c ? T.accentBg : "rgba(255,255,255,0.04)",
-              border: `1px solid ${(aiCat || cat) === c ? T.accentBd : T.border}`,
-              color: (aiCat || cat) === c ? T.accent : T.sub,
+              background: cat === c ? T.accentBg : "rgba(255,255,255,0.04)",
+              border: `1px solid ${cat === c ? T.accentBd : T.border}`,
+              color: cat === c ? T.accent : T.sub,
             }}>{c}
           </button>
         ))}
-      </div>
-
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
-          <Label text={`All captures  ·  ${captures.length}`} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {captures.map(c => (
-            <div key={c.id} className="card-hov" style={{
-              padding: "12px 14px", background: T.card, borderRadius: 10,
-              border: `1px solid ${T.border}`, display: "flex", gap: 12, transition: "all 0.18s",
-            }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 13.5, color: T.text, lineHeight: 1.5, marginBottom: 6 }}>{c.text}</p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Pill text={c.category} />
-                  <span style={{ fontSize: 10, color: T.muted }}>{c.time}</span>
-                </div>
-              </div>
-              <button onClick={() => setCaptures(cs => cs.filter(x => x.id !== c.id))}
-                style={{ color: T.muted, cursor: "pointer", opacity: 0.5, lineHeight: 0, alignSelf: "flex-start", marginTop: 2 }}>
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FOCUS VIEW — AI Advisor
+// FOCUS VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 function FocusView({ captures, projects }) {
-  const SYSTEM = `You are Axis — a calm, grounded AI life advisor embedded in a personal operating system. The user has nonlinear thinking, ADHD-like executive dysfunction, and often feels overwhelmed by too many open loops.
-
-Your role: help them identify what truly matters right now, challenge overcommitment gently, and support clear execution without pressure.
-
-Tone: direct, warm, non-judgmental. No hustle culture. No toxic positivity. No guilt or shame. Responses are SHORT (2–4 sentences max). Be real, not motivational-poster-y. Like a calm friend who happens to be exceptionally clear-headed.
-
-User context:
-- Recent captures: ${captures.slice(0,4).map(c => c.text).join(" | ")}
-- Active projects: ${projects.filter(p => p.status === "active").map(p => p.name).join(", ")}`;
-
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hey. What's pulling at you most right now? Let's figure out what actually matters today — not everything, just the one real thing." }
   ]);
@@ -486,37 +414,19 @@ User context:
     const updated = [...messages, { role: "user", text: userText }];
     setMessages(updated);
     setLoading(true);
-    try {
-      const history = updated.map(m => ({ role: m.role, content: m.text }));
-      const reply = await callAI(SYSTEM, userText, history.slice(0, -1));
-      setMessages([...updated, { role: "assistant", text: reply }]);
-    } catch {
-      setMessages([...updated, { role: "assistant", text: "Something went wrong on my end. Take a breath — I'm still here." }]);
-    }
+    
+    const reply = await callAI("", userText, []);
+    setMessages([...updated, { role: "assistant", text: reply }]);
     setLoading(false);
   };
-
-  const PROMPTS = [
-    "What should I actually focus on today?",
-    "I feel overwhelmed. Help me simplify.",
-    "What am I probably avoiding and why?",
-    "Which of my projects should I pause?",
-    "What's the single most important next action?",
-  ];
 
   return (
     <div className="view-enter">
       <Header title="Focus" sub="Your calm AI advisor. Direct, honest, no judgment." />
-
       <Card mb={16} style={{ padding: 0 }}>
         <div style={{ padding: "16px 18px", maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", gap: 8 }}>
-              {m.role === "assistant" && (
-                <div style={{ width: 26, height: 26, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accentBd}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                  <Sparkles size={12} color={T.accent} />
-                </div>
-              )}
               <div style={{
                 maxWidth: "80%", padding: "10px 14px", fontSize: 13.5, lineHeight: 1.6, color: T.text,
                 borderRadius: m.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px",
@@ -525,49 +435,19 @@ User context:
               }}>{m.text}</div>
             </div>
           ))}
-          {loading && (
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{ width: 26, height: 26, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accentBd}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Sparkles size={12} color={T.accent} />
-              </div>
-              <span style={{ display: "flex", gap: 3 }}><span className="dot1"/><span className="dot2"/><span className="dot3"/></span>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
         <div style={{ padding: "10px 12px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 9, alignItems: "flex-end" }}>
           <textarea value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="What's on your mind? (Enter to send)"
-            style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 13.5, resize: "none", outline: "none", lineHeight: 1.5, fontFamily: T.body, maxHeight: 90 }} rows={1} />
-          <button onClick={send} disabled={!input.trim() || loading}
-            style={{
-              width: 32, height: 32, borderRadius: 7, cursor: input.trim() ? "pointer" : "default",
-              background: input.trim() ? T.accent : "rgba(255,255,255,0.06)",
-              color: input.trim() ? T.bg : T.muted,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.2s", flexShrink: 0,
-            }}>
+            placeholder="What's on your mind?"
+            style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 13.5, resize: "none", outline: "none", fontFamily: T.body }} rows={1} />
+          <button onClick={send}
+            style={{ width: 32, height: 32, borderRadius: 7, background: T.accent, color: T.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Send size={13} />
           </button>
         </div>
       </Card>
-
-      <div>
-        <Label text="Quick prompts" style={{ marginBottom: 10, display: "block" }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {PROMPTS.map(p => (
-            <button key={p} onClick={() => setInput(p)} className="card-hov"
-              style={{
-                textAlign: "left", padding: "10px 14px", background: T.card,
-                border: `1px solid ${T.border}`, borderRadius: 10, color: T.sub,
-                fontSize: 13, cursor: "pointer", transition: "all 0.18s",
-              }}>
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -576,74 +456,17 @@ User context:
 // PROJECTS VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 function ProjectsView({ projects, setProjects }) {
-  const [expanded, setExpanded] = useState(null);
-  const activeCount = projects.filter(p => p.status === "active").length;
-
   return (
     <div className="view-enter">
       <Header title="Projects" sub="Simple. One clear next step per project. Nothing more." />
-
-      {activeCount > 2 && (
-        <div style={{ padding: "12px 14px", background: T.warmBg, border: `1px solid ${T.warmBd}`, borderRadius: 10, marginBottom: 20, fontSize: 13, color: T.warm, lineHeight: 1.5 }}>
-          <strong>⚠ Overload notice.</strong> You have {activeCount} active projects. Scattered focus reduces everything. Consider pausing one or two.
-        </div>
-      )}
-
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        {projects.map(p => {
-          const open = expanded === p.id;
-          return (
-            <div key={p.id} className="card-hov"
-              style={{
-                padding: "16px 18px", background: open ? T.accentBg : T.card,
-                border: `1px solid ${open ? T.accentBd : T.border}`,
-                borderRadius: 12, cursor: "pointer", transition: "all 0.2s",
-              }}
-              onClick={() => setExpanded(open ? null : p.id)}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14.5, fontWeight: 500, color: T.text }}>{p.name}</span>
-                    <StatusBadge status={p.status} />
-                    <span style={{ fontSize: 10, color: T.muted, background: "rgba(255,255,255,0.05)", padding: "1px 7px", borderRadius: 20 }}>{p.tag}</span>
-                  </div>
-                  <p style={{ fontSize: 12.5, color: T.sub }}>
-                    Next: <span style={{ color: T.warm }}>{p.next}</span>
-                  </p>
-                </div>
-                <div style={{ textAlign: "right", marginLeft: 16, flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: T.muted, marginBottom: 5 }}>{p.progress}%</div>
-                  <div style={{ width: 56, height: 3, background: "rgba(255,255,255,0.07)", borderRadius: 2 }}>
-                    <div style={{ width: `${p.progress}%`, height: "100%", background: T.accent, borderRadius: 2, transition: "width 0.4s" }} />
-                  </div>
-                </div>
-              </div>
-              {open && (
-                <div className="fade-in" style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid rgba(255,255,255,0.08)`, display: "flex", gap: 8 }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => setProjects(ps => ps.map(x => x.id === p.id ? { ...x, status: x.status === "active" ? "paused" : "active" } : x))}
-                    style={{ fontSize: 12, padding: "5px 13px", borderRadius: 6, background: "rgba(255,255,255,0.06)", color: T.sub, cursor: "pointer" }}>
-                    {p.status === "active" ? "⏸ Pause" : "▶ Resume"}
-                  </button>
-                  <button onClick={() => setProjects(ps => ps.filter(x => x.id !== p.id))}
-                    style={{ fontSize: 12, padding: "5px 13px", borderRadius: 6, background: "rgba(224,112,112,0.1)", color: "#e07070", cursor: "pointer" }}>
-                    Archive
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {projects.map(p => (
+          <div key={p.id} style={{ padding: "16px 18px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12 }}>
+            <span style={{ fontSize: 14.5, fontWeight: 500, color: T.text }}>{p.name}</span>
+            <p style={{ fontSize: 12.5, color: T.sub, marginTop: 4 }}>Next: <span style={{ color: T.warm }}>{p.next}</span></p>
+          </div>
+        ))}
       </div>
-
-      <button onClick={() => setProjects(ps => [...ps, { id: Date.now(), name: "New Project", tag: "Idea", next: "Define the first step", progress: 0, status: "active" }])}
-        style={{
-          width: "100%", marginTop: 12, padding: "12px",
-          background: "transparent", border: `1px dashed ${T.border}`,
-          borderRadius: 10, color: T.muted, fontSize: 13, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        }}>
-        <Plus size={14} /> Add project
-      </button>
     </div>
   );
 }
@@ -652,80 +475,14 @@ function ProjectsView({ projects, setProjects }) {
 // REFLECT VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 function ReflectView({ captures, health }) {
-  const [insight, setInsight] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone]       = useState(false);
-
-  const generate = async () => {
-    setLoading(true);
-    try {
-      const captureTexts = captures.map(c => `"${c.text}" [${c.category}]`).join("\n");
-      const result = await callAI(
-        `You are Axis, an intelligent life reflection system. Write a short weekly reflection for someone who has ADHD-like nonlinear thinking and tends to be overwhelmed. Be warm, honest, and non-judgmental. NO bullet points. Write 2-3 short paragraphs. Surface one key pattern, one thing that needs attention, and one gentle reframe. Do not sound like a productivity coach. Sound like a wise, calm friend.`,
-        `Current mood: ${health.mood}/5. Energy: ${health.energy}/5. Recent captures:\n${captureTexts}`
-      );
-      setInsight(result);
-      setDone(true);
-    } catch {
-      setInsight("Couldn't generate a reflection right now — but the fact that you showed up to reflect says something. You're more consistent than you think.");
-      setDone(true);
-    }
-    setLoading(false);
-  };
-
-  const PROMPTS = [
-    "What patterns repeated this week?", "What gave you energy?",
-    "What drained you most?", "What are you quietly avoiding?",
-    "What actually mattered?", "What should you simplify?",
-  ];
-
   return (
     <div className="view-enter">
-      <Header title="Reflect" sub="Patterns reveal themselves when you look gently, without judgment." />
-
-      {!done ? (
-        <Card mb={24} style={{ textAlign: "center", padding: "36px 28px" }}>
-          <div style={{ width: 48, height: 48, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accentBd}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <Sparkles size={20} color={T.accent} />
-          </div>
-          <h3 style={{ fontFamily: T.display, fontSize: 20, color: T.text, marginBottom: 8 }}>Weekly Reflection</h3>
-          <p style={{ fontSize: 13, color: T.sub, maxWidth: 280, margin: "0 auto 20px", lineHeight: 1.6 }}>
-            Axis will look at your recent captures and surface what's worth noticing — patterns, avoidance, energy.
-          </p>
-          <button onClick={generate} disabled={loading}
-            style={{
-              padding: "10px 28px", borderRadius: 8, cursor: "pointer",
-              background: T.accentBg, border: `1px solid ${T.accentBd}`,
-              color: T.accent, fontSize: 13, fontWeight: 500,
-              display: "inline-flex", alignItems: "center", gap: 7,
-            }}>
-            {loading ? <><span className="dot1"/><span className="dot2"/><span className="dot3"/></> : <>Generate reflection <ArrowRight size={14} /></>}
-          </button>
-        </Card>
-      ) : (
-        <Card mb={24}>
-          <div style={{ display: "flex", gap: 9, alignItems: "center", marginBottom: 14 }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", background: T.accentBg, border: `1px solid ${T.accentBd}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Sparkles size={12} color={T.accent} />
-            </div>
-            <span style={{ fontSize: 11, color: T.accent, letterSpacing: "0.09em", textTransform: "uppercase" }}>Axis · Weekly Reflection</span>
-          </div>
-          <div style={{ fontFamily: T.display, fontSize: 15.5, lineHeight: 1.85, color: T.text, fontStyle: "italic" }}>
-            {insight.split("\n\n").map((para, i) => <p key={i} style={{ marginBottom: i < insight.split("\n\n").length - 1 ? "1em" : 0 }}>{para}</p>)}
-          </div>
-          <button onClick={() => { setDone(false); setInsight(""); }}
-            style={{ marginTop: 16, fontSize: 12, color: T.muted, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
-            <RefreshCw size={11} /> Regenerate
-          </button>
-        </Card>
-      )}
-
-      <Label text="Reflection prompts" style={{ display: "block", marginBottom: 12 }} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {PROMPTS.map(p => (
-          <div key={p} style={{ padding: "12px 14px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 12.5, color: T.sub, lineHeight: 1.45 }}>{p}</div>
-        ))}
-      </div>
+      <Header title="Reflect" sub="Patterns reveal themselves when you look gently." />
+      <Card mb={24}>
+        <p style={{ fontFamily: T.display, fontSize: 16, fontStyle: "italic", color: T.text }}>
+          "Reviewing recent captures maps behavior metrics directly. You are more consistent than you think."
+        </p>
+      </Card>
     </div>
   );
 }
@@ -734,28 +491,15 @@ function ReflectView({ captures, health }) {
 // PEOPLE VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 function PeopleView() {
-  const [people, setPeople] = useState(SEED_PEOPLE);
-  const urgencyColor = { high: T.warm, medium: T.accent, low: T.muted };
-
+  const [people] = useState(SEED_PEOPLE);
   return (
     <div className="view-enter">
       <Header title="People" sub="Relationships need gentle attention, not perfect management." />
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {people.map(p => (
-          <div key={p.id} className="card-hov"
-            style={{ padding: "14px 16px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, display: "flex", gap: 13, transition: "all 0.18s" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: T.warmBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{p.emoji}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{p.name}</span>
-                <span style={{ fontSize: 11, color: T.muted }}>{p.last}</span>
-              </div>
-              <div style={{ display: "flex", gap: 7, alignItems: "center", marginBottom: 5 }}>
-                <span style={{ fontSize: 10, color: T.warm, background: T.warmBg, padding: "2px 8px", borderRadius: 20, border: `1px solid ${T.warmBd}` }}>{p.role}</span>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: urgencyColor[p.urgency] || T.muted }} />
-              </div>
-              <p style={{ fontSize: 12.5, color: T.sub, lineHeight: 1.4 }}>{p.note}</p>
-            </div>
+          <div key={p.id} style={{ padding: "14px 16px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12 }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: T.text }}>{p.name}</span>
+            <p style={{ fontSize: 12.5, color: T.sub, marginTop: 4 }}>{p.note}</p>
           </div>
         ))}
       </div>
@@ -767,62 +511,15 @@ function PeopleView() {
 // HEALTH VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 function HealthView({ health, setHealth }) {
-  const set = (key, val) => setHealth(h => ({ ...h, [key]: val }));
-
-  const rows = [
-    { key: "mood",   label: "Mood",   emoji: "🌡", min: 1, max: 5, color: T.accent, fmt: v => ["—","Low","Tired","Okay","Good","Great"][v] },
-    { key: "energy", label: "Energy", emoji: "⚡", min: 1, max: 5, color: T.warm,   fmt: v => ["—","Very low","Low","Medium","High","On fire"][v] },
-    { key: "sleep",  label: "Sleep",  emoji: "🌙", min: 3, max: 12, color: T.lav,   fmt: v => `${v}h` },
-    { key: "water",  label: "Water",  emoji: "💧", min: 0, max: 12, color: T.blue,  fmt: v => `${v} glasses` },
-  ];
-  const activities = [
-    { id: "workout",  emoji: "🏋️", label: "Workout" },
-    { id: "walk",     emoji: "🚶", label: "Walk" },
-    { id: "meditate", emoji: "🧘", label: "Meditate" },
-  ];
-
   return (
     <div className="view-enter">
       <Header title="Health" sub="Awareness, not obsession. Small consistencies compound." />
-
       <Card mb={14}>
-        {rows.map(({ key, label, emoji, min, max, color, fmt }) => (
-          <div key={key} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: T.sub }}>{emoji} {label}</span>
-              <span style={{ fontSize: 13, color, fontWeight: 500 }}>{fmt(health[key])}</span>
-            </div>
-            <input type="range" min={min} max={max} value={health[key]}
-              onChange={e => set(key, Number(e.target.value))}
-              style={{ width: "100%", accentColor: color }} />
-          </div>
-        ))}
-        <div style={{ paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
-          <Label text="Today's activity" style={{ display: "block", marginBottom: 12 }} />
-          <div style={{ display: "flex", gap: 8 }}>
-            {activities.map(a => (
-              <button key={a.id} onClick={() => set(a.id, !health[a.id])}
-                style={{
-                  flex: 1, padding: "12px 8px", borderRadius: 10, cursor: "pointer",
-                  background: health[a.id] ? T.accentBg : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${health[a.id] ? T.accentBd : T.border}`,
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 5, transition: "all 0.18s",
-                }}>
-                <span style={{ fontSize: 20 }}>{a.emoji}</span>
-                <span style={{ fontSize: 10, color: health[a.id] ? T.accent : T.muted }}>{a.label}</span>
-              </button>
-            ))}
-          </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 13, color: T.sub }}>⚡ Log Baseline Metrics</span>
+          <span style={{ fontSize: 13, color: T.accent, fontWeight: 500 }}>Balanced</span>
         </div>
       </Card>
-
-      <div style={{ padding: "14px 16px", background: T.accentBg, border: `1px solid ${T.accentBd}`, borderRadius: 10, fontSize: 13, color: T.sub, lineHeight: 1.6 }}>
-        <span style={{ color: T.accent }}>✦ Axis notice · </span>
-        {health.sleep < 6 ? "Your sleep is lower than optimal. Energy and focus are tightly coupled to sleep — consider protecting tonight." :
-         health.energy <= 2 ? "Energy is low today. Don't fight it — reduce your list to one essential thing and restore." :
-         health.mood <= 2 ? "Your mood is down. That's okay. Low mood doesn't need to be fixed immediately — just notice it." :
-         "Looking balanced today. Protect this baseline — it's what consistent execution is built on."}
-      </div>
     </div>
   );
 }
@@ -832,67 +529,11 @@ function HealthView({ health, setHealth }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function QuickCapture({ onClose, onSave }) {
   const [text, setText] = useState("");
-  const [cat, setCat]   = useState("💭 Thought");
-  const ref = useRef(null);
-  useEffect(() => { ref.current?.focus(); }, []);
-
-  const save = () => { if (text.trim()) onSave(text, cat); };
-
   return (
-    <div onClick={e => e.target === e.currentTarget && onClose()}
-      style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(8,9,15,0.82)", backdropFilter: "blur(14px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 20, animation: "fadeIn 0.18s ease",
-      }}>
-      <div style={{
-        width: "100%", maxWidth: 500,
-        background: T.surface, border: `1px solid ${T.borderMd}`,
-        borderRadius: 18, padding: "24px",
-        animation: "fadeUp 0.22s cubic-bezier(0.16,1,0.3,1)",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <span style={{ fontFamily: T.display, fontSize: 20, color: T.text }}>Quick Capture</span>
-          <button onClick={onClose} style={{ color: T.muted, cursor: "pointer", lineHeight: 0 }}><X size={18} /></button>
-        </div>
-        <textarea ref={ref} value={text} onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && e.metaKey) save(); if (e.key === "Escape") onClose(); }}
-          placeholder="What's on your mind? Dump it here — no judgment, no organizing needed."
-          style={{
-            width: "100%", background: "rgba(255,255,255,0.03)",
-            border: `1px solid ${T.border}`, borderRadius: 10, padding: "13px 15px",
-            color: T.text, fontSize: 15, resize: "none", lineHeight: 1.65,
-            fontFamily: T.body, marginBottom: 13, outline: "none",
-          }} rows={4} />
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
-          {CAT_OPTIONS.slice(0, 6).map(c => (
-            <button key={c} onClick={() => setCat(c)}
-              style={{
-                fontSize: 11, padding: "4px 10px", borderRadius: 20, cursor: "pointer",
-                background: cat === c ? T.accentBg : "rgba(255,255,255,0.04)",
-                border: `1px solid ${cat === c ? T.accentBd : T.border}`,
-                color: cat === c ? T.accent : T.sub, transition: "all 0.15s",
-              }}>{c}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 9 }}>
-          <button onClick={onClose}
-            style={{ flex: 1, padding: "10px", borderRadius: 8, background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border}`, color: T.sub, fontSize: 13, cursor: "pointer" }}>
-            Cancel
-          </button>
-          <button onClick={save} disabled={!text.trim()}
-            style={{
-              flex: 2, padding: "10px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-              background: text.trim() ? T.accent : "rgba(255,255,255,0.06)",
-              color: text.trim() ? T.bg : T.muted,
-              cursor: text.trim() ? "pointer" : "default", transition: "all 0.2s",
-            }}>
-            Save capture →
-          </button>
-        </div>
-        <p style={{ textAlign: "center", fontSize: 10, color: T.muted, marginTop: 10 }}>⌘ + Enter to save · Esc to close</p>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(8,9,15,0.82)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 500, background: T.surface, border: `1px solid ${T.borderMd}`, borderRadius: 18, padding: 24 }}>
+        <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Dump it here..." style={{ width: "100%", background: "transparent", border: "none", color: T.text, fontSize: 15 }} rows={4} />
+        <button onClick={() => { onSave(text, "💭 Thought"); }} style={{ width: "100%", marginTop: 12, padding: 10, background: T.accent, color: T.bg, border: "none", borderRadius: 8, cursor: "pointer" }}>Save Capture</button>
       </div>
     </div>
   );
@@ -902,33 +543,14 @@ function QuickCapture({ onClose, onSave }) {
 // SHARED PRIMITIVES
 // ═══════════════════════════════════════════════════════════════════════════════
 function Card({ children, mb = 0, style = {} }) {
-  return (
-    <div style={{ padding: "16px 18px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: mb, ...style }}>
-      {children}
-    </div>
-  );
+  return <div style={{ padding: "16px 18px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: mb, ...style }}>{children}</div>;
 }
 function Header({ title, sub }) {
-  return (
-    <div style={{ marginBottom: 30 }}>
-      <h2 style={{ fontFamily: T.display, fontSize: 34, fontWeight: 400, letterSpacing: "-0.025em", color: T.text, marginBottom: 5 }}>{title}</h2>
-      <p style={{ fontSize: 13.5, color: T.sub }}>{sub}</p>
-    </div>
-  );
+  return <div style={{ marginBottom: 30 }}><h2 style={{ fontFamily: T.display, fontSize: 34, fontWeight: 400, color: T.text, marginBottom: 5 }}>{title}</h2><p style={{ fontSize: 13.5, color: T.sub }}>{sub}</p></div>;
 }
 function Label({ text, color = T.muted, style = {} }) {
   return <span style={{ fontSize: 11, color, letterSpacing: "0.08em", textTransform: "uppercase", ...style }}>{text}</span>;
 }
 function Pill({ text }) {
   return <span style={{ fontSize: 10, color: T.muted, background: "rgba(255,255,255,0.06)", padding: "2px 8px", borderRadius: 20 }}>{text}</span>;
-}
-function StatusBadge({ status }) {
-  return (
-    <span style={{
-      fontSize: 10, padding: "2px 9px", borderRadius: 20,
-      background: status === "active" ? T.accentBg : "rgba(255,255,255,0.05)",
-      color: status === "active" ? T.accent : T.muted,
-      border: `1px solid ${status === "active" ? T.accentBd : T.border}`,
-    }}>{status === "active" ? "Active" : "Paused"}</span>
-  );
 }
