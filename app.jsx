@@ -91,7 +91,6 @@ function greeting() {
   return             { hi: "Good evening.",   sub: "Winding down or still in flow?" };
 }
 
-// ─── LIVE CLIENT-SIDE CHAT ROUTING (BYOK) ──────────────────────────────────────
 async function callLiveAI(provider, apiKey, userMsg, systemPrompt = "") {
   if (!apiKey) return "Please go to the Settings tab and add your personal API Key to enable live advisor responses.";
   
@@ -133,17 +132,16 @@ async function callLiveAI(provider, apiKey, userMsg, systemPrompt = "") {
 
     return "Selected provider setup is still parsing. Check back shortly.";
   } catch (err) {
-    return `Connection error: ${err.message}. Double check your key validity and internet configurations.`;
+    return `Connection error: ${err.message}. Double check your key validity.`;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MAIN APPLICATION ENGINE
+// MAIN APPLICATON
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [view, setView] = useState("today");
   
-  // LocalStorage Persisted States
   const [captures, setCaptures] = useState(() => {
     const saved = localStorage.getItem("axis_captures");
     return saved ? JSON.parse(saved) : SEED_CAPTURES;
@@ -167,8 +165,6 @@ export default function App() {
     const saved = localStorage.getItem("axis_health");
     return saved ? JSON.parse(saved) : { mood: 3, energy: 3, sleep: 7, water: 4 };
   });
-
-  // API Config State
   const [aiConfig, setAiConfig] = useState(() => {
     const saved = localStorage.getItem("axis_ai_config");
     return saved ? JSON.parse(saved) : { provider: "openai", key: "" };
@@ -176,7 +172,6 @@ export default function App() {
 
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Sync state mutations to physical LocalStorage
   useEffect(() => { localStorage.setItem("axis_captures", JSON.stringify(captures)); }, [captures]);
   useEffect(() => { localStorage.setItem("axis_tasks", JSON.stringify(tasks)); }, [tasks]);
   useEffect(() => { localStorage.setItem("axis_projects", JSON.stringify(projects)); }, [projects]);
@@ -192,7 +187,6 @@ export default function App() {
     <div style={{ fontFamily: T.body, background: T.bg, color: T.text, minHeight: "100vh", display: "flex" }}>
       <style>{GLOBAL_CSS}</style>
 
-      {/* SIDEBAR NAVIGATION */}
       <aside style={{ position: "fixed", top: 0, left: 0, bottom: 0, width: 214, background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", zIndex: 50 }}>
         <div style={{ padding: "26px 22px 22px", borderBottom: `1px solid ${T.border}` }}>
           <div style={{ fontFamily: T.display, fontSize: 24, color: T.text, letterSpacing: "-0.02em" }}>Axis</div>
@@ -216,7 +210,6 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* CORE VIEWPORT */}
       <main style={{ flex: 1, marginLeft: 214, minHeight: "100vh" }}>
         <div style={{ maxWidth: 700, margin: "0 auto", padding: "44px 36px 120px" }}>
           {view === "today"    && <TodayView captures={captures} health={health} setHealth={setHealth} tasks={tasks} setTasks={setTasks} />}
@@ -230,9 +223,8 @@ export default function App() {
         </div>
       </main>
 
-      {/* FLOATING QUICK CAPTURE BUTTON */}
       <button onClick={() => setModalOpen(true)}
-        style={{ position: "fixed", bottom: 28, right: 28, width: 50, height: 50, borderRadius: "50%", background: T.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+        style={{ position: "fixed", bottom: 28, right: 28, width: 50, height: 50, borderRadius: "50%", background: T.accent, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", zIndex: 200 }}>
         <Plus size={20} color={T.bg} />
       </button>
 
@@ -242,7 +234,7 @@ export default function App() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
-// MODULE SUB-COMPONENTS
+// CONTROLLERS & VIEWS
 // ───────────────────────────────────────────────────────────────────────────────
 
 function TodayView({ captures, health, setHealth, tasks, setTasks }) {
@@ -276,10 +268,8 @@ function TodayView({ captures, health, setHealth, tasks, setTasks }) {
       </Card>
 
       <div style={{ marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <Label text="Recent Cloud Storage Backups" />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <Label text="Recent Capture Storage Loops" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
           {captures.slice(0, 3).map(c => (
             <div key={c.id} style={{ padding: "12px 14px", background: T.card, borderRadius: 8, border: `1px solid ${T.border}` }}>
               <p style={{ fontSize: 13.5, color: T.text, margin: "0 0 6px" }}>{c.text}</p>
@@ -347,7 +337,7 @@ function FocusView({ config }) {
 
   return (
     <div className="view-enter">
-      <Header title="Focus Engine" sub="Direct alignment workspace. Powered by your API key." />
+      <Header title="Focus Engine" sub="Direct alignment workspace. Powered securely by your local key." />
       <Card mb={16} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 350, overflowY: "auto" }}>
         {messages.map((m, i) => (
           <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? T.accentBg : "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: 10, border: `1px solid ${m.role === "user" ? T.accentBd : T.border}`, maxWidth: "85%", fontSize: 14 }}>
@@ -378,10 +368,10 @@ function ProjectsView({ projects, setProjects }) {
     <div className="view-enter">
       <Header title="Active Tracks" sub="One essential physical action step per project loop." />
       <Card mb={16}>
-        <Label text="New Track" />
+        <Label text="Create New Track" />
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Project Name" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
-          <input value={next} onChange={e => setNext(e.target.value)} placeholder="Immediate Next Physical Step" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Project Loop Identifier" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <input value={next} onChange={e => setNext(e.target.value)} placeholder="Immediate Next Physical Action Step" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
           <button onClick={addProject} style={{ background: T.accent, color: T.bg, padding: "8px", border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer", marginTop: 4 }}>Add Loop</button>
         </div>
       </Card>
@@ -407,12 +397,12 @@ function ReflectView({ captures, config }) {
 
   const triggerWeeklyReflection = async () => {
     if (captures.length === 0) {
-      setAnalysis("Your capture buffers are empty. Record a few thoughts first.");
+      setAnalysis("Your capture storage lines are empty. Log a few items first.");
       return;
     }
     setLoading(true);
     const logdump = captures.map(c => `[${c.category}]: ${c.text}`).join("\n");
-    const prompt = `Analyze these recent notebook inputs and give a short, wise 2-paragraph reflection highlighting patterns or cognitive loops:\n\n${logdump}`;
+    const prompt = `Analyze these notebook items and return a supportive 2-paragraph reflection noting trends or loop behaviors:\n\n${logdump}`;
     const response = await callLiveAI(config.provider, config.key, prompt, "You are a grounding life strategist.");
     setAnalysis(response);
     setLoading(false);
@@ -420,7 +410,7 @@ function ReflectView({ captures, config }) {
 
   return (
     <div className="view-enter">
-      <Header title="Orientation Reflection" sub="Run a cognitive check over your structural loops." />
+      <Header title="Orientation Reflection" sub="Run a thematic context map check across your open cycles." />
       <Card mb={16}>
         <button onClick={triggerWeeklyReflection} disabled={loading} style={{ width: "100%", padding: 12, background: T.accentBg, border: `1px solid ${T.accentBd}`, color: T.accent, borderRadius: 8, cursor: "pointer", fontWeight: 500 }}>
           {loading ? "Analyzing Buffers..." : "Generate AI Reflection Matrix"}
@@ -447,12 +437,12 @@ function PeopleView({ people, setPeople }) {
 
   return (
     <div className="view-enter">
-      <Header title="Social Spheres" sub="Keep connection baselines open without scheduling guilt." />
+      <Header title="Social Spheres" sub="Keep connection pipelines balanced without scheduling friction." />
       <Card mb={16}>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
-          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Context Note" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
-          <button onClick={addPerson} style={{ background: T.accent, color: T.bg, padding: "8px", border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Track Contact</button>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Contact Identifier" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="Structural Context Node Note" style={{ background: T.bg, border: `1px solid ${T.border}`, padding: "8px", borderRadius: 6, color: T.text, outline: "none" }} />
+          <button onClick={addPerson} style={{ background: T.accent, color: T.bg, padding: "8px", border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Track Connection Loop</button>
         </div>
       </Card>
 
@@ -476,18 +466,73 @@ function PeopleView({ people, setPeople }) {
 
 function HealthView({ health, setHealth }) {
   const sliders = [
-    { key: "mood", label: "Subjective Mood Check", min: 1, max: 5 },
-    { key: "energy", label: "Cognitive Energy Pool", min: 1, max: 5 },
-    { key: "sleep", label: "Sleep Duration (Hours)", min: 4, max: 12 },
-    { key: "water", label: "Water Level (Glasses)", min: 0, max: 10 },
+    { key: "mood", label: "Subjective Mood Baseline Check", min: 1, max: 5 },
+    { key: "energy", label: "Cognitive Energy Buffer Capacity", min: 1, max: 5 },
+    { key: "sleep", label: "Rest Duration Metrics (Hours)", min: 4, max: 12 },
+    { key: "water", label: "Hydration Intake (Glasses)", min: 0, max: 10 },
   ];
 
   return (
     <div className="view-enter">
-      <Header title="Biometric Indicators" sub=" loosely monitor physical systems fueling executive function." />
+      <Header title="Biometric Indicators" sub="Track operational vitals that directly impact focus buffers." />
       <Card>
         {sliders.map(s => (
           <div key={s.key} style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: T.sub }}>
               <span>{s.label}</span>
-              <span style
+              <span style={{ color: T.accent, fontWeight: 500 }}>{health[s.key]}</span>
+            </div>
+            <input type="range" min={s.min} max={s.max} value={health[s.key]} onChange={e => setHealth(h => ({ ...h, [s.key]: Number(e.target.value) }))} style={{ width: "100%" }} />
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function SettingsView({ config, setConfig }) {
+  return (
+    <div className="view-enter">
+      <Header title="System Configuration" sub="Map your isolated, non-custodial local API gateway coordinates." />
+      <Card>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, color: T.sub, display: "block", marginBottom: 6 }}>Intelligence Core Router</label>
+          <select value={config.provider} onChange={e => setConfig(prev => ({ ...prev, provider: e.target.value }))} style={{ width: "100%", background: T.surface, color: T.text, border: `1px solid ${T.border}`, padding: "10px", borderRadius: 8, outline: "none" }}>
+            <option value="openai">OpenAI (GPT-4o-mini)</option>
+            <option value="openrouter">OpenRouter (Gemini 2.5 Flash)</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: T.sub, display: "block", marginBottom: 6 }}>Personal Client Authorization Key</label>
+          <input type="password" value={config.key} onChange={e => setConfig(prev => ({ ...prev, key: e.target.value }))} placeholder="Paste private authorization code here..." style={{ width: "100%", background: T.surface, color: T.text, border: `1px solid ${T.border}`, padding: "10px", borderRadius: 8, outline: "none" }} />
+          <p style={{ fontSize: 11, color: T.muted, marginTop: 8, lineHeight: 1.4 }}>
+            Your coordinate credentials remain static inside local sandbox spaces (`localStorage`). Key pipelines run purely client-side to target execution frames. No routing databases are used.
+          </p>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function QuickCapture({ onClose, onSave }) {
+  const [text, setText] = useState("");
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(8,9,15,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 500, background: T.surface, border: `1px solid ${T.borderMd}`, borderRadius: 14, padding: 20 }}>
+        <textarea value={text} onChange={e => setText(e.target.value)} autoFocus placeholder="Log instant capture block entry..." style={{ width: "100%", background: "transparent", border: "none", color: T.text, fontSize: 15, resize: "none", outline: "none" }} rows={3} />
+        <button onClick={() => { if (text.trim()) onSave(text, "💭 Thought"); }} style={{ width: "100%", marginTop: 12, padding: "10px", background: T.accent, color: T.bg, border: "none", borderRadius: 6, fontWeight: 500, cursor: "pointer" }}>Commit Capture</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── PRIMITIVES ───────────────────────────────────────────────────────────────
+function Card({ children, mb = 0, style = {} }) {
+  return <div style={{ padding: "16px 18px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, marginBottom: mb, ...style }}>{children}</div>;
+}
+function Header({ title, sub }) {
+  return <div style={{ marginBottom: 24 }}><h2 style={{ fontFamily: T.display, fontSize: 32, fontWeight: 400, color: T.text, marginBottom: 4 }}>{title}</h2><p style={{ fontSize: 13.5, color: T.sub, margin: 0 }}>{sub}</p></div>;
+}
+function Label({ text }) {
+  return <span style={{ fontSize: 11, color: T.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>{text}</span>;
+}
