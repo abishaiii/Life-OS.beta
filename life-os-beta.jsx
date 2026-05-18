@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Home, Plus, Target, FolderOpen, Sparkles, Heart, Users,
-  CheckCircle2, Circle, X, Send, RefreshCw, ChevronRight,
-  Zap, Moon, Droplets, Dumbbell, Brain, Wind, ArrowRight,
-  MoreHorizontal, Tag, Clock, TrendingUp, Smile
+  CheckCircle2, Circle, X, Send, RefreshCw, ArrowRight
 } from "lucide-react";
 
 // ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
